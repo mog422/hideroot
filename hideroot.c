@@ -39,7 +39,7 @@ asmlinkage int(*ori_sys_access)(const char *, int);
 
 static int check_deny(int uid,char const *name) {
 	int s;
-	if(uid != 10249) return 0;
+	if(uid != 10249 && uid != 10218 && uid != 10239) return 0;
 	if(!name) return 0;
 	s=strlen(name);
 	if(s>3 && !strcmp(&name[s-3],"/su")) return 1;
@@ -52,8 +52,8 @@ static int check_deny(int uid,char const *name) {
 asmlinkage int sys_hideroot_open(char *fname, int flags, int mode)
 {
 	int uid=ori_sys_getuid();
-	if(check_deny(uid,fname)) {
-		printk("[%s] deny %s by %d\n", __FUNCTION__, fname, uid);
+	if(check_deny(uid,fname) && strcmp(fname,"/proc/self/cmdline")) {
+		if(strncmp(fname,"/proc/",6)) printk("[%s] deny %s by %d\n", __FUNCTION__, fname, uid);
 		return -ENOENT;
 	}
 	return(ori_sys_open(fname, flags, mode));
