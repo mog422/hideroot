@@ -2,7 +2,19 @@ hideroot
 
 The kernel module for avoid rooting detection on android.
 
+You must change uid on source code. (hideroot.c:42)
+
+root@android:/storage/emulated/legacy # ps | grep love
+u0_a249   12367 284   959288 70932 ffffffff 40303fe8 S klb.android.lovelive
+
+it's uid is 10249.
+
+
 To compile:
 
 make -C {KERNELDIR} M=$PWD
+
+To use:
+adb push hideroot.ko /sdcard/
+adb shell insmod /sdcard/hideroot.ko
 
