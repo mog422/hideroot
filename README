@@ -1,0 +1,8 @@
+hideroot
+
+The kernel module for avoid detection rooting on android.
+
+To compile:
+
+make -C {KERNELDIR} M=$PWD
+
