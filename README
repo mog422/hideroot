@@ -1,6 +1,6 @@
 hideroot
 
-The kernel module for avoid detection rooting on android.
+The kernel module for avoid rooting detection on android.
 
 To compile:
 
