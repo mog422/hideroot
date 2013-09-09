@@ -49,32 +49,35 @@ static int check_deny(int uid,char const *name) {
 	if(s>8&&!strncmp(name,"/proc/",6) && !strcmp(&name[s-8],"/cmdline")) return 1;
 	return 0;
 }
-asmlinkage int sys_hideroot_open(char *fname, int flags, int mode)
+asmlinkage int sys_hideroot_open(char *_fname, int flags, int mode)
 {
 	int uid=ori_sys_getuid();
-	if(check_deny(uid,fname) && strcmp(fname,"/proc/self/cmdline")) {
+	char *fname=getname(_fname);
+	if(fname && check_deny(uid,fname) && strcmp(fname,"/proc/self/cmdline")) {
 		if(strncmp(fname,"/proc/",6)) printk("[%s] deny %s by %d\n", __FUNCTION__, fname, uid);
 		return -ENOENT;
 	}
-	return(ori_sys_open(fname, flags, mode));
+	return(ori_sys_open(_fname, flags, mode));
 }
-asmlinkage int sys_hideroot_stat64(char *fname, void *parm)
+asmlinkage int sys_hideroot_stat64(char *_fname, void *parm)
 {
 	int uid=ori_sys_getuid();
+	char const *fname=getname(_fname);
 	if(check_deny(uid,fname)) {
 		printk("[%s] deny %s by %d\n", __FUNCTION__, fname, uid);
 		return -ENOENT;
 	}
-	return(ori_sys_stat64(fname, parm));
+	return(ori_sys_stat64(_fname, parm));
 }
-asmlinkage int sys_hideroot_access(char *fname, int parm)
+asmlinkage int sys_hideroot_access(char *_fname, int parm)
 {
 	int uid=ori_sys_getuid();
+	char const *fname=getname(_fname);
 	if(check_deny(uid,fname)) {
 		printk("[%s] deny %s by %d\n", __FUNCTION__, fname, uid);
 		return -ENOENT;
 	}
-	return(ori_sys_access(fname, parm));
+	return(ori_sys_access(_fname, parm));
 }
 
 int __init hideroot_init(void)
