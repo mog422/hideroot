@@ -53,7 +53,7 @@ asmlinkage int sys_hideroot_open(char *_fname, int flags, int mode)
 {
 	int uid=ori_sys_getuid();
 	char *fname=getname(_fname);
-	if(!fname) goto out;
+	if(IS_ERR(fname)) goto out;
 	if(check_deny(uid,fname) && strcmp(fname,"/proc/self/cmdline")) {
 		if(strncmp(fname,"/proc/",6)) printk("[%s] deny %s by %d\n", __FUNCTION__, fname, uid);
 		putname(fname);
@@ -67,7 +67,7 @@ asmlinkage int sys_hideroot_stat64(char *_fname, void *parm)
 {
 	int uid=ori_sys_getuid();
 	char *fname=getname(_fname);
-	if(!fname) goto out;
+	if(IS_ERR(fname)) goto out;
 	if(check_deny(uid,fname)) {
 		printk("[%s] deny %s by %d\n", __FUNCTION__, fname, uid);
 		putname(fname);
@@ -81,7 +81,7 @@ asmlinkage int sys_hideroot_access(char *_fname, int parm)
 {
 	int uid=ori_sys_getuid();
 	char *fname=getname(_fname);
-	if(!fname) goto out;
+	if(IS_ERR(fname)) goto out;
 	if(check_deny(uid,fname)) {
 		printk("[%s] deny %s by %d\n", __FUNCTION__, fname, uid);
 		putname(fname);
