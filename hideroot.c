@@ -19,6 +19,7 @@
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
+#include <linux/moduleparam.h>
 #include <linux/cred.h>
 #include <linux/syscalls.h>
 #include <linux/proc_fs.h>
@@ -28,8 +29,17 @@
 #include <linux/syscalls.h>
 #include <asm/mmu_writeable.h>
 
+MODULE_LICENSE("GPL");
+MODULE_AUTHOR("mog422 <admin@mog422.net>");
+MODULE_DESCRIPTION("Android kernel module for to bypassing rooting check");
 
 static unsigned long *k_syscall_table;
+
+static int apps[32] = { -1, };
+static int apps_cnt = 0;
+
+module_param_array(apps, int, &apps_cnt, 0000);
+MODULE_PARM_DESC(apps, "List of app numbers to bypass rooting check (max 32)");
 
 asmlinkage int(*ori_sys_getuid)(void);
 
@@ -37,16 +47,27 @@ asmlinkage int(*ori_sys_open)(const char *, int, int);
 asmlinkage int(*ori_sys_stat64)(const char *, void *);
 asmlinkage int(*ori_sys_access)(const char *, int);
 
-static int check_deny(int uid,char const *name) {
-	int s;
-	if(uid != 10249 && uid != 10218 && uid != 10239) return 0;
+static int check_deny(int uid, char const *name) {
+	int s, i, flag = 0;
+	for (i = 0; i < apps_cnt; i++) {
+		if (apps[i] == uid) flag = 1;
+	}
+	if(!flag) return 0;
 	if(!name) return 0;
 	s=strlen(name);
 	if(s>3 && !strcmp(&name[s-3],"/su")) return 1;
 	if(s>10 && !strcmp(&name[s-10],"/rootshell")) return 1;
+	if(s>8 && !strncmp(name,"/proc/",6)) {
+		if (!strcmp(&name[s-8],"/cmdline")) return 1;
+		if (!strcmp(&name[s-5],"/stat")) return 1;
+		if (!strcmp(&name[s-6],"/status")) return 1;
+	}
 	if(!strcasecmp(name,"/system/app/Superuser.apk")) return 1;
+	if(!strcasecmp(name,"/system/app/SuperSU.apk")) return 1;
+	if(!strncmp(name,"/data/app/com.noshufou.android.su",33)) return 1;
 	if(!strncmp(name,"/data/data/com.noshufou.android.su",34)) return 1;
-	if(s>8&&!strncmp(name,"/proc/",6) && !strcmp(&name[s-8],"/cmdline")) return 1;
+	if(!strncmp(name, "/data/app/eu.chainfire.supersu",30)) return 1;
+	if(!strncmp(name, "/data/data/eu.chainfire.supersu",31)) return 1;
 	return 0;
 }
 asmlinkage int sys_hideroot_open(char *_fname, int flags, int mode)
@@ -94,13 +115,14 @@ asmlinkage int sys_hideroot_access(char *_fname, int parm)
 
 int __init hideroot_init(void)
 {
-	printk("hideroot module init\n");
+	int i;
+	printk("hideroot: module init\n");
 	k_syscall_table = (unsigned long*)kallsyms_lookup_name("sys_call_table");
 	if(!k_syscall_table) {
-		printk("Failed to find sys_call_table\n");
+		printk("hideroot: Failed to find sys_call_table\n");
 		return -ENOMEM;
 	} else {
-		printk("Okay let's hooking %x\n",(unsigned int)k_syscall_table);
+		printk("hideroot: Okay let's hooking %x\n",(unsigned int)k_syscall_table);
 		ori_sys_getuid = (void*)k_syscall_table[__NR_getuid];
 		ori_sys_open = (void*)k_syscall_table[__NR_open];
 		mem_text_write_kernel_word(&k_syscall_table[__NR_open],(unsigned long)sys_hideroot_open);
@@ -109,7 +131,12 @@ int __init hideroot_init(void)
 		ori_sys_access = (void*)k_syscall_table[__NR_access];
 		mem_text_write_kernel_word(&k_syscall_table[__NR_access],(unsigned long)sys_hideroot_access);
 	}
-	printk("loaded\n");
+	printk("hideroot: Module loaded with next apps (total %d)\n", apps_cnt);
+	for (i = 0; i < apps_cnt; i++) {
+		apps[i] += 10000;
+		printk("\t%d\n", apps[i]);
+	}
+	printk("-------------------------------------\n");
 	return 0;
 }
 
@@ -122,5 +149,3 @@ void __exit hideroot_exit(void)
 
 module_init(hideroot_init);
 module_exit(hideroot_exit);
-MODULE_LICENSE("GPL");
-
