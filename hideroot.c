@@ -48,11 +48,9 @@ asmlinkage int(*ori_sys_stat64)(const char *, void *);
 asmlinkage int(*ori_sys_access)(const char *, int);
 
 static int check_deny(int uid, char const *name) {
-	int s, i, flag = 0;
-	for (i = 0; i < apps_cnt; i++) {
-		if (apps[i] == uid) flag = 1;
-	}
-	if(!flag) return 0;
+	int s, i;
+	for (i = 0; i < apps_cnt; i++) if (apps[i] == uid) break;
+	if(i==apps_cnt) return 0;
 	if(!name) return 0;
 	s=strlen(name);
 	if(s>3 && !strcmp(&name[s-3],"/su")) return 1;
