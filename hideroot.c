@@ -55,10 +55,10 @@ static int check_deny(int uid, char const *name) {
 	s=strlen(name);
 	if(s>3 && !strcmp(&name[s-3],"/su")) return 1;
 	if(s>10 && !strcmp(&name[s-10],"/rootshell")) return 1;
-	if(s>8 && !strncmp(name,"/proc/",6)) {
-		if (!strcmp(&name[s-8],"/cmdline")) return 1;
-		if (!strcmp(&name[s-5],"/stat")) return 1;
-		if (!strcmp(&name[s-6],"/status")) return 1;
+	if(!strncmp(name,"/proc/",6)) {
+		if (s>8 && !strcmp(&name[s-8],"/cmdline")) return 1;
+		if (s>5 && !strcmp(&name[s-5],"/stat")) return 1;
+		if (s>6 && !strcmp(&name[s-6],"/status")) return 1;
 	}
 	if(!strcasecmp(name,"/system/app/Superuser.apk")) return 1;
 	if(!strcasecmp(name,"/system/app/SuperSU.apk")) return 1;
