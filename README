@@ -1,16 +1,14 @@
 hideroot
-===
 
 The kernel module for avoid rooting detection on android.
 
-## How to compile
-    $ make -C {KERNELDIR} M=$PWD
+How to compile:
+$ make -C {KERNELDIR} M=$PWD
 
-## How to use
-    laptop$ adb push hideroot.ko /sdcard/
-    laptop$ adb shell su
-    
-    android# ps | grep love
-    u0_a249   12367 284   959288 70932 ffffffff 40303fe8 S klb.android.lovelive
-    u0_a274   12367 284   959288 70932 ffffffff 40303fe8 S klb.android.lovelivedemo
-    android# insmod /sdcard/hideroot.ko apps=249,274
+How to use:
+laptop$ adb push hideroot.ko /sdcard/
+laptop$ adb shell su
+android# ps | grep love
+u0_a249   12367 284   959288 70932 ffffffff 40303fe8 S klb.android.lovelive
+u0_a274   12367 284   959288 70932 ffffffff 40303fe8 S klb.android.lovelivedemo
+android# insmod /sdcard/hideroot.ko apps=249,274
