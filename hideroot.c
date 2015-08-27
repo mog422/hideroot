@@ -41,11 +41,15 @@ static int apps_cnt = 0;
 module_param_array(apps, int, &apps_cnt, 0000);
 MODULE_PARM_DESC(apps, "List of app numbers to bypass rooting check (max 32)");
 
-asmlinkage int(*ori_sys_getuid)(void);
+asmlinkage long(*ori_sys_getuid)(void);
 
-asmlinkage int(*ori_sys_open)(const char *, int, int);
-asmlinkage int(*ori_sys_stat64)(const char *, void *);
-asmlinkage int(*ori_sys_access)(const char *, int);
+asmlinkage long(*ori_sys_open)(const char *, int, umode_t);
+asmlinkage long(*ori_sys_openat)(int, const char *, int, umode_t);
+asmlinkage long(*ori_sys_fstatat64)(int,const char *, struct stat64 *,int);
+asmlinkage long(*ori_sys_stat64)(const char *, struct stat64 *);
+asmlinkage long(*ori_sys_lstat64)(const char *, struct stat64 *);
+asmlinkage long(*ori_sys_access)(const char *, int);
+asmlinkage long(*ori_sys_faccessat)(int, const char *, int);
 
 static int check_deny(int uid, char const *name) {
 	int s, i;
@@ -58,7 +62,7 @@ static int check_deny(int uid, char const *name) {
 	if(!strncmp(name,"/proc/",6)) {
 		if (s>8 && !strcmp(&name[s-8],"/cmdline")) return 1;
 		if (s>5 && !strcmp(&name[s-5],"/stat")) return 1;
-		if (s>6 && !strcmp(&name[s-6],"/status")) return 1;
+		if (s>7 && !strcmp(&name[s-7],"/status")) return 1;
 	}
 	if(!strcasecmp(name,"/system/app/Superuser.apk")) return 1;
 	if(!strcasecmp(name,"/system/app/SuperSU.apk")) return 1;
@@ -68,7 +72,23 @@ static int check_deny(int uid, char const *name) {
 	if(!strncmp(name, "/data/data/eu.chainfire.supersu",31)) return 1;
 	return 0;
 }
-asmlinkage int sys_hideroot_open(char *_fname, int flags, int mode)
+asmlinkage long sys_hideroot_open(const char *_fname, int flags, umode_t mode)
+{
+	int uid=ori_sys_getuid();
+	char *fname=getname(_fname);
+
+	if(IS_ERR(fname)) goto out;
+
+	if(check_deny(uid,fname) && strcmp(fname,"/proc/self/cmdline")) {
+		if(strncmp(fname,"/proc/",6)) printk("[%s] deny %s by %d\n", __FUNCTION__, fname, uid);
+		putname(fname);
+		return -ENOENT;
+	}
+	putname(fname);
+	out:
+	return(ori_sys_open(_fname, flags, mode));
+}
+asmlinkage long sys_hideroot_openat(int dfd, const char *_fname, int flags, umode_t mode)
 {
 	int uid=ori_sys_getuid();
 	char *fname=getname(_fname);
@@ -80,13 +100,29 @@ asmlinkage int sys_hideroot_open(char *_fname, int flags, int mode)
 	}
 	putname(fname);
 	out:
-	return(ori_sys_open(_fname, flags, mode));
+	return(ori_sys_openat(dfd, _fname, flags, mode));
 }
-asmlinkage int sys_hideroot_stat64(char *_fname, void *parm)
+asmlinkage long sys_hideroot_fstatat64(int dfd, const char *_fname, struct stat64 *parm,int flag)
 {
 	int uid=ori_sys_getuid();
 	char *fname=getname(_fname);
 	if(IS_ERR(fname)) goto out;
+	if(check_deny(uid,fname)) {
+		printk("[%s] deny %s by %d\n", __FUNCTION__, fname, uid);
+		putname(fname);
+		return -ENOENT;
+	}
+	putname(fname);
+	out:
+	return(ori_sys_fstatat64(dfd,_fname, parm,flag));
+}
+
+asmlinkage long sys_hideroot_stat64(const char *_fname, struct stat64 *parm)
+{
+	int uid=ori_sys_getuid();
+	char *fname=getname(_fname);
+	if(IS_ERR(fname)) goto out;
+
 	if(check_deny(uid,fname)) {
 		printk("[%s] deny %s by %d\n", __FUNCTION__, fname, uid);
 		putname(fname);
@@ -96,11 +132,28 @@ asmlinkage int sys_hideroot_stat64(char *_fname, void *parm)
 	out:
 	return(ori_sys_stat64(_fname, parm));
 }
-asmlinkage int sys_hideroot_access(char *_fname, int parm)
+asmlinkage long sys_hideroot_lstat64(const char *_fname, struct stat64 *parm)
 {
 	int uid=ori_sys_getuid();
 	char *fname=getname(_fname);
 	if(IS_ERR(fname)) goto out;
+
+	if(check_deny(uid,fname)) {
+		printk("[%s] deny %s by %d\n", __FUNCTION__, fname, uid);
+		putname(fname);
+		return -ENOENT;
+	}
+	putname(fname);
+	out:
+	return(ori_sys_lstat64(_fname, parm));
+}
+
+asmlinkage long sys_hideroot_access(char *_fname, int parm)
+{
+	int uid=ori_sys_getuid();
+	char *fname=getname(_fname);
+	if(IS_ERR(fname)) goto out;
+
 	if(check_deny(uid,fname)) {
 		printk("[%s] deny %s by %d\n", __FUNCTION__, fname, uid);
 		putname(fname);
@@ -109,6 +162,22 @@ asmlinkage int sys_hideroot_access(char *_fname, int parm)
 	putname(fname);
 	out:
 	return(ori_sys_access(_fname, parm));
+}
+
+asmlinkage long sys_hideroot_faccessat(int dfd, char *_fname, int parm)
+{
+	int uid=ori_sys_getuid();
+	char *fname=getname(_fname);
+	if(IS_ERR(fname)) goto out;
+
+	if(check_deny(uid,fname)) {
+		printk("[%s] deny %s by %d\n", __FUNCTION__, fname, uid);
+		putname(fname);
+		return -ENOENT;
+	}
+	putname(fname);
+	out:
+	return(ori_sys_faccessat(dfd, _fname, parm));
 }
 
 int __init hideroot_init(void)
@@ -122,13 +191,24 @@ int __init hideroot_init(void)
 	} else {
 		printk("hideroot: Okay let's hooking %x\n",(unsigned int)k_syscall_table);
 		ori_sys_getuid = (void*)k_syscall_table[__NR_getuid];
+
 		ori_sys_open = (void*)k_syscall_table[__NR_open];
-		mem_text_write_kernel_word(&k_syscall_table[__NR_open],(unsigned long)sys_hideroot_open);
+		mem_text_write_kernel_word(&k_syscall_table[__NR_open], (unsigned long)sys_hideroot_open);
+		ori_sys_openat = (void*)k_syscall_table[__NR_openat];
+		mem_text_write_kernel_word(&k_syscall_table[__NR_openat], (unsigned long)sys_hideroot_openat);
+		ori_sys_fstatat64 = (void*)k_syscall_table[__NR_fstatat64];
+		mem_text_write_kernel_word(&k_syscall_table[__NR_fstatat64],(unsigned long)sys_hideroot_fstatat64);
+
 		ori_sys_stat64 = (void*)k_syscall_table[__NR_stat64];
 		mem_text_write_kernel_word(&k_syscall_table[__NR_stat64],(unsigned long)sys_hideroot_stat64);
+		ori_sys_lstat64 = (void*)k_syscall_table[__NR_lstat64];
+		mem_text_write_kernel_word(&k_syscall_table[__NR_lstat64],(unsigned long)sys_hideroot_lstat64);
 		ori_sys_access = (void*)k_syscall_table[__NR_access];
 		mem_text_write_kernel_word(&k_syscall_table[__NR_access],(unsigned long)sys_hideroot_access);
+		ori_sys_faccessat = (void*)k_syscall_table[__NR_faccessat];
+		mem_text_write_kernel_word(&k_syscall_table[__NR_faccessat],(unsigned long)sys_hideroot_faccessat);
 	}
+
 	printk("hideroot: Module loaded with next apps (total %d)\n", apps_cnt);
 	for (i = 0; i < apps_cnt; i++) {
 		apps[i] += 10000;
@@ -141,8 +221,13 @@ int __init hideroot_init(void)
 void __exit hideroot_exit(void)
 {
 	mem_text_write_kernel_word(&k_syscall_table[__NR_open],(unsigned long)ori_sys_open);
+	mem_text_write_kernel_word(&k_syscall_table[__NR_openat],(unsigned long)ori_sys_openat);
+	mem_text_write_kernel_word(&k_syscall_table[__NR_fstatat64],(unsigned long)ori_sys_fstatat64);
 	mem_text_write_kernel_word(&k_syscall_table[__NR_stat64],(unsigned long)ori_sys_stat64);
+	mem_text_write_kernel_word(&k_syscall_table[__NR_lstat64],(unsigned long)ori_sys_lstat64);
 	mem_text_write_kernel_word(&k_syscall_table[__NR_access],(unsigned long)ori_sys_access);
+	mem_text_write_kernel_word(&k_syscall_table[__NR_faccessat],(unsigned long)ori_sys_faccessat);
+
 }
 
 module_init(hideroot_init);
